@@ -26,7 +26,7 @@ APP_DIR="${APP_DIR:-/opt/clawbot}"
 #
 # 只持久化非敏感项：公钥走 <data>/ssh/authorized_keys，不写入本文件。
 # ---------------------------------------------------------------------------
-CFG_FILE="$APP_DIR/server/data/deploy.env"
+CFG_FILE="$APP_DIR/data/deploy.env"
 if [ -f "$CFG_FILE" ]; then
   while IFS='=' read -r k v; do
     k="$(printf '%s' "$k" | tr -d '[:space:]')"
@@ -64,12 +64,12 @@ if [ -d "$APP_DIR/.git" ]; then
 else
   git clone --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
 fi
-cd "$APP_DIR/server"
+cd "$APP_DIR"
 mkdir -p data
 
 # 公钥文件：放在宿主 data 目录（= 容器内 /app/data，属于数据卷）
 # 这样 docker rm -f + docker run 重建容器后公钥**不会丢**，无需反复注入。
-KEY_DIR="$APP_DIR/server/data/ssh"
+KEY_DIR="$APP_DIR/data/ssh"
 KEY_FILE="$KEY_DIR/authorized_keys"
 mkdir -p "$KEY_DIR"
 chmod 700 "$KEY_DIR"
@@ -106,7 +106,7 @@ RUN_ARGS=(
   --restart unless-stopped
   -p "${SSH_BIND}:${SSH_PORT}:22"
   -p "127.0.0.1:${LOGIN_PORT}:8080"
-  -v "$APP_DIR/server/data:/app/data"
+  -v "$APP_DIR/data:/app/data"
   -e TZ=Asia/Shanghai
   -e DATA_DIR=/app/data
   -e LOG_LEVEL=info

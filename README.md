@@ -122,6 +122,7 @@ node src/cli/selftest.js
 |---|---|
 | [命令说明](https://github.com/JHPatchouli/clawbot-roleplay/wiki/命令说明) | 全部命令、参数和功能状态 |
 | [使用示例](https://github.com/JHPatchouli/clawbot-roleplay/wiki/使用示例) | 从接入模型到天气与语音的配置顺序 |
+| [部署](docs/部署.md) | 本地运行、Docker Compose 与 VPS 部署 |
 | [二次开发](https://github.com/JHPatchouli/clawbot-roleplay/wiki/二次开发) | 新增命令、感知、工具和测试的入口 |
 | [导入格式](https://github.com/JHPatchouli/clawbot-roleplay/wiki/导入格式) | 角色卡、世界书、记忆、会话和配置 JSON |
 
@@ -244,6 +245,7 @@ The first launch starts the channel login flow. Credentials remain in `data/` an
 | [Commands](https://github.com/JHPatchouli/clawbot-roleplay/wiki/Commands) | All commands, arguments, and feature status |
 | [Examples](https://github.com/JHPatchouli/clawbot-roleplay/wiki/Examples) | Setup flow from model access through weather and speech |
 | [Import formats](https://github.com/JHPatchouli/clawbot-roleplay/wiki/Import-Formats) | JSON for cards, lore, memories, sessions, and configuration |
+| [Deployment](docs/Deployment.md) | Local setup, Docker Compose, and VPS deployment |
 | [Development](https://github.com/JHPatchouli/clawbot-roleplay/wiki/Development) | Extension points for commands, perception, tools, and tests |
 
 ## 许可 / License
