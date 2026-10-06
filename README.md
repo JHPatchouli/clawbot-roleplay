@@ -2,9 +2,9 @@
 
 # ClawBot 角色扮演后端框架
 
-ClawBot roleplay backend for character cards, long-term memory, tool calling, and time and weather perception.
+ClawBot WeChat roleplay backend for character cards, long-term memory, tool calling, and time and weather perception.
 
-可扩展的角色扮演后端，连接 ClawBot 聊天通道，支持角色卡、长期记忆、工具调用、时间与天气感知。
+基于 ClawBot 微信接口的可扩展角色扮演后端，支持角色卡、长期记忆、工具调用、时间与天气感知。
 
 角色卡 · 长期记忆 · 工具调用 · 时间与天气感知 · 主动开口
 
@@ -131,7 +131,7 @@ node src/cli/selftest.js
 
 # ClawBot Roleplay Backend Framework
 
-An extensible roleplay backend for the ClawBot chat channel.
+An extensible roleplay backend for the ClawBot WeChat interface.
 
 Character cards · Long-term memory · Tools · Time and weather · Proactive messages
 
