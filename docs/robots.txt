@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://jhpatchouli.github.io/clawbot-roleplay/sitemap.xml
+Sitemap: https://git.mrhao.xyz/clawbot-roleplay/sitemap.xml
