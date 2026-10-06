@@ -1,0 +1,22 @@
+{
+  "name": "clawbot-server",
+  "private": true,
+  "version": "0.1.0",
+  "description": "ClawBot 角色扮演后端框架",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "simulate": "node src/cli/simulate.js",
+    "selftest": "node src/cli/selftest.js",
+    "check": "node --check src/index.js"
+  },
+  "dependencies": {
+    "qrcode-terminal": "^0.12.0",
+    "silk-wasm": "^3.7.1"
+  }
+}

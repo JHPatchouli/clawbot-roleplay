@@ -1,0 +1,22 @@
+services:
+  clawbot:
+    build: .
+    image: clawbot:dev
+    container_name: clawbot
+    restart: unless-stopped
+    # 只绑定宿主机本机回环：SSH 与登录页不对外网暴露
+    ports:
+      - "127.0.0.1:2222:22"
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+      - DATA_DIR=/app/data
+      - LOG_LEVEL=info
+      - LOGIN_PAGE_ENABLED=1
+      - LOGIN_PAGE_HOST=127.0.0.1
+      - LOGIN_PAGE_PORT=8080
+      # 由宿主机 .env 注入（二选一）
+      - SSH_AUTHORIZED_KEYS=${SSH_AUTHORIZED_KEYS:-}
+      - SSH_ROOT_PASSWORD=${SSH_ROOT_PASSWORD:-}
