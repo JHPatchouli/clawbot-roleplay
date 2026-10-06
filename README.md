@@ -30,6 +30,21 @@ ClawBot roleplay backend for character cards, long-term memory, tool calling, an
 
 角色保持独立的人设、会话和记忆；模型可以调用工具，系统则在每轮对话中提供时间和天气。感知、工具与命令分别注册，新增一种能力不需要改写消息通道或模型调用流程。
 
+## 差异
+
+角色关系不从每轮对话重新开始。长期记忆保留经历、约定和变化，并区分当前会话与全局范围；角色也可以按现实时间主动开口。时间和天气作为现实上下文注入，位置由使用者明确配置，不从服务器 IP 推断。
+
+当前交互仍以文字为主，语音识别处于实验阶段。后续方向是完成语音输入到语音回复，并把图片、视频、语音和链接纳入同一轮对话。
+
+## 方向
+
+| 阶段 | 内容 | 状态 |
+|---|---|---|
+| 当前 | 文字对话、长期记忆、工具调用、时间与多地点天气 | 可用 |
+| 实验 | 语音输入转文字，默认识别后回传，不进入对话 | 实验性 |
+| 下一步 | 文字回复转为语音并发送 | 开发中 |
+| 后续 | 图片、视频、语音和链接在同一轮中理解与回复 | 开发中 |
+
 <table>
 <tr>
 <td width="50%">
@@ -135,6 +150,21 @@ The project has no administration frontend. Models, characters, memories, percep
 ---
 
 Characters keep separate personas, sessions, and memories. The model can call tools, while the system supplies time and weather on each turn. Perception, tools, and commands are registered separately, so adding a capability does not require rewriting the channel or the model loop.
+
+## What is different
+
+A character relationship continues across turns. Long-term memory keeps experiences, agreements, and changes, with separate session and global scope, and a character can start a message based on real-world time. Time and weather enter each turn as real context. Locations are configured explicitly and are not inferred from the server IP.
+
+The current interaction is still text-first, with experimental speech recognition. The direction is speech input followed by spoken replies, then images, video, audio, and links handled in the same turn.
+
+## Direction
+
+| Stage | Scope | Status |
+|---|---|---|
+| Now | Text chat, long-term memory, tools, time, and multi-location weather | Stable |
+| Experimental | Speech input to text; transcripts are returned for verification and do not enter chat | Experimental |
+| Next | Convert text replies to speech and send them | In development |
+| Later | Understand and answer with images, video, audio, and links in one turn | In development |
 
 <table>
 <tr>
