@@ -18,7 +18,8 @@ ClawBot WeChat roleplay backend for character cards, long-term memory, tool call
 
 [命令说明](https://github.com/JHPatchouli/clawbot-roleplay/wiki/命令说明) ·
 [使用示例](https://github.com/JHPatchouli/clawbot-roleplay/wiki/使用示例) ·
-[二次开发](https://github.com/JHPatchouli/clawbot-roleplay/wiki/二次开发)
+[二次开发](https://github.com/JHPatchouli/clawbot-roleplay/wiki/二次开发) ·
+[快速开始](docs/部署.md)
 
 </div>
 
@@ -140,7 +141,8 @@ Character cards · Long-term memory · Tools · Time and weather · Proactive me
 
 [Commands](https://github.com/JHPatchouli/clawbot-roleplay/wiki/Commands) ·
 [Examples](https://github.com/JHPatchouli/clawbot-roleplay/wiki/Examples) ·
-[Development](https://github.com/JHPatchouli/clawbot-roleplay/wiki/Development)
+[Development](https://github.com/JHPatchouli/clawbot-roleplay/wiki/Development) ·
+[Quick start](docs/Deployment.md)
 
 This is a roleplay backend intended for learning and further development. Its design draws on mature frameworks such as AstrBot, particularly their approaches to bot extensibility, context organization, and modular features, and adapts those ideas to the ClawBot channel and long-term memory.
 
