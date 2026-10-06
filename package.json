@@ -2,7 +2,7 @@
   "name": "clawbot-server",
   "private": true,
   "version": "0.1.0",
-  "description": "ClawBot 角色扮演后端框架",
+  "description": "ClawBot roleplay backend for character cards, long-term memory, tools, and real-world perception",
   "license": "AGPL-3.0-only",
   "type": "module",
   "engines": {
