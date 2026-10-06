@@ -45,12 +45,12 @@ Open `http://127.0.0.1:8080` after the tunnel is connected.
 
 ## VPS
 
-`deploy/vps-setup.sh` clones the repository, builds the image, and starts the container on a VPS. The first run requires the repository URL and an SSH public key:
+`deploy/vps-setup.en.sh` is the English deployment script. `deploy/vps-setup.sh` performs the same steps with Chinese output. The first run requires the repository URL and an SSH public key:
 
 ```bash
 REPO_URL="https://github.com/JHPatchouli/clawbot-roleplay.git" \
 SSH_PUBKEY="ssh-ed25519 AAAA... you@host" \
-bash deploy/vps-setup.sh
+bash deploy/vps-setup.en.sh
 ```
 
 Common variables:

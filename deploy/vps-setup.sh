@@ -15,6 +15,7 @@
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/clawbot}"
+mkdir -p "$APP_DIR/data"
 
 # ---------------------------------------------------------------------------
 # 0) 载入上次部署参数（存在数据卷里，重建容器不会丢）
@@ -65,7 +66,6 @@ else
   git clone --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
 fi
 cd "$APP_DIR"
-mkdir -p data
 
 # 公钥文件：放在宿主 data 目录（= 容器内 /app/data，属于数据卷）
 # 这样 docker rm -f + docker run 重建容器后公钥**不会丢**，无需反复注入。
@@ -115,23 +115,13 @@ RUN_ARGS=(
   -e LOGIN_PAGE_PORT=8080
   -e "SSH_AUTHORIZED_KEYS=${SSH_PUBKEY}"
 )
-CMD=()
-
 if [ "$DEV" = "1" ]; then
   echo "    DEV=1：挂载源码 + node --watch 热重载"
-  RUN_ARGS+=(-v "$APP_DIR/src:/app/src")
-  RUN_ARGS+=(-v "$APP_DIR:/repo")
-  CMD=(node --watch src/index.js)
-  # 若宿主已保存 git 凭据，则只读挂载进容器，便于容器内直接 git pull 更新代码
-  for f in /root/.gitconfig /root/.git-credentials; do
-    if [ -f "$f" ]; then
-      RUN_ARGS+=(-v "$f:$f:ro")
-      echo "    已挂载 $f（容器内可 git pull）"
-    fi
-  done
+  RUN_ARGS+=(-v "$APP_DIR/src:/app/src" -v "$APP_DIR:/repo")
+  docker run "${RUN_ARGS[@]}" clawbot:dev node --watch src/index.js
+else
+  docker run "${RUN_ARGS[@]}" clawbot:dev
 fi
-
-docker run "${RUN_ARGS[@]}" clawbot:dev "${CMD[@]}"
 
 echo "==> 4/5 容器状态"
 sleep 2
@@ -143,15 +133,17 @@ fi
 docker ps --filter name=clawbot --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 docker exec clawbot tail -4 /app/data/server.log 2>/dev/null || true
 
-# 记录本次生效参数，供下次部署沿用（防的正是「忘传 SSH_BIND」这类事故）
-{
-  echo "# 由 vps-setup.sh 自动生成：上次部署参数。改这里等于改下次的默认值。"
-  echo "BRANCH=$BRANCH"
-  echo "SSH_BIND=$SSH_BIND"
-  echo "SSH_PORT=$SSH_PORT"
-  echo "LOGIN_PORT=$LOGIN_PORT"
-  echo "DEV=$DEV"
-} > "$CFG_FILE"
+umask 077
+cat > "$CFG_FILE" <<EOF
+# 由部署脚本生成。这里的值会成为下次执行的默认值。
+BRANCH=$BRANCH
+SSH_BIND=$SSH_BIND
+SSH_PORT=$SSH_PORT
+LOGIN_PORT=$LOGIN_PORT
+DEV=$DEV
+REPO_URL=$REPO_URL
+EOF
+chmod 600 "$CFG_FILE"
 echo "==> 已记住本次参数：$CFG_FILE"
 
 echo "==> 5/5 完成"
