@@ -64,7 +64,8 @@ async function loginCycle({ cfg, logger, dataDir, store, page, localTokens }) {
       status: 'wait',
       message: '等待扫码',
       qrcodeContent: content,
-      qrImageUrl: makeQrImageUrl(content)
+      qrImageUrl: makeQrImageUrl(content),
+      revision: token
     })
 
     let verifyCode = ''

@@ -7,6 +7,14 @@
  */
 import http from 'node:http'
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 function pageHtml(state) {
   const img = state.qrImageUrl
     ? `<img src="${state.qrImageUrl}" alt="QR" width="280" height="280"/>`
@@ -25,16 +33,17 @@ function pageHtml(state) {
 img{border:1px solid #eee;border-radius:12px}h1{font-size:18px}.s{color:#666}code{word-break:break-all;font-size:12px}</style>
 </head><body>
 <h1>ClawBot 扫码登录</h1>
-<p class="s">状态：<b id="st">${state.status}</b> ${state.message || ''}</p>
+<p class="s">状态：<b id="st">${escapeHtml(state.status)}</b> <span id="msg">${escapeHtml(state.message || '')}</span></p>
 ${img}
 ${verifyBlock}
 <p class="s">用手机微信扫码并按提示确认。二维码内容：</p>
-<code>${state.qrcodeContent || '-'}</code>
+<code id="qr-content">${escapeHtml(state.qrcodeContent || '-')}</code>
 <script>
+const revision = ${JSON.stringify(state.revision || '')};
 setInterval(async () => {
   try {
     const r = await fetch('/status.json'); const j = await r.json();
-    if (j.status !== document.getElementById('st').textContent) location.reload();
+    if (j.revision !== revision || j.status !== document.getElementById('st').textContent) location.reload();
   } catch (e) {}
 }, 2000);
 </script>
@@ -42,7 +51,7 @@ setInterval(async () => {
 }
 
 export function createLoginPage({ host = '127.0.0.1', port = 8080, logger } = {}) {
-  let state = { status: 'starting', message: '', qrcodeContent: null, qrImageUrl: null }
+  let state = { status: 'starting', message: '', qrcodeContent: null, qrImageUrl: null, revision: '' }
   let verifyResolver = null
 
   const server = http.createServer((req, res) => {
@@ -53,7 +62,7 @@ export function createLoginPage({ host = '127.0.0.1', port = 8080, logger } = {}
     }
     if (req.method === 'GET' && req.url.startsWith('/status.json')) {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
-      res.end(JSON.stringify({ status: state.status, message: state.message }))
+      res.end(JSON.stringify({ status: state.status, message: state.message, revision: state.revision || '' }))
       return
     }
     if (req.method === 'POST' && req.url.startsWith('/verify')) {
