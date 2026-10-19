@@ -7,6 +7,7 @@
 import { sendJsonExport } from './importexport.js'
 import { scopedCollection } from '../storage/scope.js'
 import { getCurrentCharacter, getCurrentCharacterId, setCurrentCharacterId } from '../roleplay/character.js'
+import { TOOL_SKILLS } from '../tools/skills.js'
 import { buildCharacterSystemPrompt } from '../roleplay/prompts.js'
 import { PROMPT_LIST } from '../prompts/index.js'
 
@@ -16,7 +17,7 @@ export function registerRoleplayCommands(router) {
   router.register({
     name: 'char',
     aliases: ['character'],
-    description: '角色卡：list / use / show / export / del / clone / claim',
+    description: '角色卡：list / use / show / skills / tools / export / del / clone / claim',
     run: async ({ args, inbound, services }) => {
       const { store, reply } = services
       const uid = inbound.userId
@@ -29,7 +30,7 @@ export function registerRoleplayCommands(router) {
         const cur = getCurrentCharacterId(store, uid)
         const lines = ['角色卡：']
         list.forEach((c, i) => lines.push(`${i + 1}. ${c.name}${c.id === cur ? ' ← 当前' : ''}${c.shared ? '（共享）' : ''}`))
-        lines.push('', '启用：/char use <序号>　详情：/char show <序号>　删除：/char del <序号>')
+        lines.push('', '启用：/char use <序号>　详情：/char show <序号>　技能：/char skills <序号>　工具：/char tools <序号>')
         lines.push('共享角色可复制为私有：/char clone <序号>　把共享条目收归自己：/char claim')
         return reply(lines.join('\n'))
       }
@@ -51,9 +52,35 @@ export function registerRoleplayCommands(router) {
           `性格：${(c.personality || '—').slice(0, 120)}`,
           `场景：${(c.scenario || '—').slice(0, 120)}`,
           `开场白：${(c.firstMes || '—').slice(0, 120)}`,
-          `额外提示词：${c.systemPrompt ? '有' : '无'}`
+          `额外提示词：${c.systemPrompt ? '有' : '无'}`,
+          '技能：' + (c.skills === undefined ? '全部启用' : (c.skills.length ? c.skills.join('、') : '未启用'))
         ]
         return reply(lines.join('\n'))
+      }
+      if (sub === 'skills' || sub === 'skill') {
+        const c = args[1] ? pick(list, args[1]) : getCurrentCharacter(store, uid)
+        if (!c) return reply('先用 /char use <序号> 选择角色，或用 /char skills <序号> 查看。')
+        if (!args[2]) {
+          const enabled = new Set(c.skills === undefined ? TOOL_SKILLS.map((skill) => skill.name) : c.skills)
+          return reply(TOOL_SKILLS.map((skill) => (enabled.has(skill.name) ? '✓ ' : '✗ ') + skill.name + '：' + skill.summary).join('\n'))
+        }
+        const action = String(args[2] || '').toLowerCase()
+        const skillName = String(args[3] || '').trim()
+        if (!TOOL_SKILLS.some((skill) => skill.name === skillName) || !['on', 'off'].includes(action)) {
+          return reply('用法：/char skills <序号> on|off <技能名>')
+        }
+        const current = new Set(c.skills === undefined ? TOOL_SKILLS.map((skill) => skill.name) : c.skills)
+        action === 'on' ? current.add(skillName) : current.delete(skillName)
+        col.put({ ...c, skills: [...current], updatedAt: Date.now() })
+        return reply('已更新「' + c.name + '」的技能：' + ([...current].join('、') || '未启用'))
+      }
+      if (sub === 'tools' || sub === 'tool') {
+        const c = pick(list, args[1])
+        if (!c) return reply('用法：/char tools <序号>')
+        const enabled = new Set(c.skills === undefined ? TOOL_SKILLS.map((skill) => skill.name) : c.skills)
+        const visible = services.tools.visibleSpecs(c).map((item) => item.name)
+        const gated = TOOL_SKILLS.flatMap((skill) => skill.tools.map((tool) => tool + ' ← ' + skill.name + (enabled.has(skill.name) ? '（可用）' : '（未启用）')))
+        return reply(['当前角色可用工具：', visible.join('、') || '（无）', '', '由技能控制：', ...gated].join('\n'))
       }
       if (sub === 'export') {
         const c = pick(list, args[1])
@@ -119,7 +146,7 @@ export function registerRoleplayCommands(router) {
             '⚠️ 收归后其他用户将不再看到这些条目。'
         )
       }
-      return reply('用法：/char list | use <序号> | show <序号> | export <序号> | del <序号> | clone <序号> | claim')
+      return reply('用法：/char list | use <序号> | show <序号> | skills <序号> [on|off <技能名>] | tools <序号> | export <序号> | del <序号> | clone <序号> | claim')
     }
   })
 
@@ -232,6 +259,8 @@ export function registerRoleplayCommands(router) {
         if (character.personality) L.push('性格：' + trunc(character.personality, 50))
         if (character.scenario) L.push('场景：' + trunc(character.scenario, 50))
         L.push('开场白 ' + (character.firstMes ? '有' : '无') + '（按设计不发送）· 额外提示词 ' + (character.systemPrompt ? '有' : '无'))
+        const enabledSkills = character.skills === undefined ? TOOL_SKILLS.map((skill) => skill.name) : character.skills
+        L.push('技能：' + (enabledSkills.length ? enabledSkills.join('、') : '未启用') + ' · /char skills 管理')
       } else {
         L.push('（未选择）用 /char use <序号> 启用；发角色卡 JSON 可导入')
       }

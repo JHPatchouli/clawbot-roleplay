@@ -14,7 +14,7 @@
 | `/whoami` | 查看当前用户 ID |
 | `/cancel` | 取消当前操作 |
 | `/usage` | 查看 token 用量与缓存命中率 |
-| `/pending` | 查看发送失败后的待发队列；`/pending retry` 立即补发 |
+| `/pending` | 查看发送失败后保留的文本；`/pending retry` 立即补发。文件和图片另存于待发件箱，每次入站只补发一项 |
 
 ## 模型
 
@@ -56,6 +56,8 @@
 | `/char` | 列出角色卡 |
 | `/char use <序号>` | 使用角色卡 |
 | `/char show <序号>` | 查看角色卡 |
+| `/char skills <序号>` | 查看技能；`on|off <技能名>` 控制启用 |
+| `/char tools <序号>` | 查看当前角色实际可调用的工具 |
 | `/char export <序号>` | 导出角色卡 |
 | `/char clone <序号>` | 复制角色卡 |
 | `/char del <序号>` | 删除角色卡 |

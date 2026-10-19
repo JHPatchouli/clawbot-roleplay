@@ -14,6 +14,7 @@ export const PROVIDER_PRESETS = {
     id: 'deepseek',
     label: 'DeepSeek',
     baseUrl: 'https://api.deepseek.com/v1',
+    apiMode: 'responses',
     defaultChatModel: 'deepseek-flash',
     defaultEmbedModel: '',
     balancePath: '/user/balance', // 余额接口（相对 API 根域）

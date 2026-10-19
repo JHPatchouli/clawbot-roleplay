@@ -41,7 +41,7 @@ The login page is not exposed directly. Reach it through an SSH tunnel:
 ssh -L 8080:127.0.0.1:8080 -p 2222 root@127.0.0.1
 ```
 
-Open `http://127.0.0.1:8080` after the tunnel is connected.
+Open `http://127.0.0.1:8080` after the tunnel is connected. The page renders the QR code locally from the scan content returned by WeChat and refreshes automatically when that content changes.
 
 ## VPS
 
@@ -74,3 +74,11 @@ ssh -p 2222 root@127.0.0.1
 ```
 
 Public keys are stored on the host at `data/ssh/authorized_keys`. Add a key there and run the deployment script again to load it into the container.
+
+## Delivery failures and retries
+
+Failed text is stored in `data/pending-replies.json`, and the user immediately receives a visible notice. The original text remains queued for automatic retry, or can be sent with `/pending retry`.
+
+Files and images are stored in `data/outbox.json`. Each inbound message retries only the oldest item, and the same file is not queued twice. An item is discarded after 6 hours or 3 consecutive failures.
+
+A proactive message counts toward the daily limit only after WeChat accepts it. If generation succeeds but delivery fails, the content remains queued and does not consume the daily allowance.

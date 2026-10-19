@@ -81,7 +81,14 @@ export function createAgent({ providers, tools, config, logger }) {
   const label = (r) => (r.ok ? 'ok' : 'fail')
 
   async function runOnce({ messages, maxTokens, temperature, native, knownNames, onRound, userCtx }) {
-    let msgs = native ? [...messages] : [...messages, { role: 'system', content: tools.promptBlock() }]
+    const character = userCtx?.character || null
+    const catalog = tools.skillCatalog?.(character)
+    const skillNote = catalog ? '\n\n【可用技能】需要具体做法时主动调用 use_skill：\n' + catalog : ''
+    const promptIndex = messages.findLastIndex((message) => message?.role === 'system')
+    let msgs = messages.map((message, index) => (
+      index === promptIndex && skillNote ? { ...message, content: String(message.content || '') + skillNote } : message
+    ))
+    if (!native) msgs = [...msgs, { role: 'system', content: tools.promptBlock(character) }]
     const max = maxRounds()
     let rounds = 0
     // 工具调用轨迹：随结果返回，由上层存进会话，供 /cot 查看
@@ -102,7 +109,7 @@ export function createAgent({ providers, tools, config, logger }) {
         messages: msgs,
         maxTokens,
         temperature,
-        tools: native ? tools.nativeSchema() : undefined
+        tools: native ? tools.nativeSchema(character) : undefined
       })
       if (out.usage) usages.push(out.usage)
 
@@ -149,7 +156,7 @@ export function createAgent({ providers, tools, config, logger }) {
           logger?.info(`[tool] ${c.name} ${label(r)} → ${String(r.text).slice(0, 80)}`)
           trace.push({ round: rounds, name: c.name, args: c.args, ok: !!r.ok, ms, chars: String(r.text).length, preview: String(r.text).slice(0, 400) })
           if (userCtx && UNTRUSTED_TOOLS.has(c.name)) userCtx.untrustedThisTurn = true
-          msgs = [...msgs, { role: 'tool', tool_call_id: c.id || 'call_' + rounds, content: r.text }]
+          msgs = [...msgs, { role: 'tool', tool_call_id: c.call_id || c.id || 'call_' + rounds, call_id: c.call_id || c.id || 'call_' + rounds, content: r.text }]
         }
       } else {
         msgs = [...msgs, { role: 'assistant', content: out.text }]

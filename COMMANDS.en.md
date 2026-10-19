@@ -20,7 +20,7 @@ There are three statuses:
 | `/whoami` | Show the current user ID |
 | `/cancel` | Cancel the current operation |
 | `/usage` | Show token usage and cache hit rate |
-| `/pending` | Show messages waiting after a send failure; `/pending retry` sends them now |
+| `/pending` | Show retained text after a send failure; `/pending retry` sends it now. Files and images use a separate queue and retry one item per inbound message |
 
 ## Stable: models
 
@@ -61,6 +61,8 @@ There are three statuses:
 | `/char` | List character cards |
 | `/char use <number>` | Use a card |
 | `/char show <number>` | Show a card |
+| `/char skills <number>` | Show skills; `on|off <skill>` enables or disables one |
+| `/char tools <number>` | Show tools actually available to the character |
 | `/char export <number>` | Export a card |
 | `/char clone <number>` | Clone a card |
 | `/char del <number>` | Delete a card |
@@ -149,7 +151,7 @@ Weather is never inferred from the server IP. Swapped coordinates are corrected 
 | `/proactive silence <minutes>` | Set the minimum silence |
 | `/proactive cap <0-50>` | Set the daily cap; `0` means unlimited |
 | `/proactive quiet <start>-<end>` | Set quiet hours |
-| `/proactive now` | Try once immediately |
+| `/proactive now` | Try once immediately. It counts toward the daily limit only after WeChat accepts it |
 
 ## Experimental: speech to text
 

@@ -13,7 +13,7 @@ import { getCurrentCharacter } from '../roleplay/character.js'
 import { buildRoleplayMessages, attachMemoryTail, attachHandyBlock, attachTailBlock, attachVoiceNote, stripInjectedTags, MEMORY_PLACEMENT } from '../roleplay/context.js'
 import { toExtractText, messageFingerprint, lastIndexMatching } from '../chat/history.js'
 import { extractText as extractCarrier } from '../util/carrier.js'
-import { takeFor } from '../util/outbox.js'
+import { enqueue, takeFor } from '../util/outbox.js'
 import { DEFAULT_SYSTEM } from '../prompts/index.js'
 import { effectiveMaxTokens } from '../providers/catalog.js'
 
@@ -645,6 +645,7 @@ export function createRouter({ services }) {
         userCtx: {
           userId: inbound.userId,
           characterId: character ? character.id : null,
+          character,
           sessionId: sid,
           contextToken: inbound.contextToken,
           sent: { count: 0 },
@@ -740,7 +741,11 @@ export function createRouter({ services }) {
       })
 
       await context.typingEnd?.()
-      return context.reply(replyText)
+      const delivered = await context.reply(replyText)
+      if (delivered === false) {
+        await context.reply('⚠️ 这条回复刚才没有发送成功，已保留，通道恢复后会补发。')
+      }
+      return undefined
     } catch (err) {
       history.pop(inbound.userId, sid)
       await context.typingEnd?.().catch?.(() => {})
@@ -751,16 +756,18 @@ export function createRouter({ services }) {
 
   /** 待发件箱：主动发送需新鲜 context_token，改为在下次入站时补发 */
   async function flushOutbox(inbound, context) {
-    const list = takeFor(services.dataDir || 'data', inbound.userId)
+    const list = takeFor(services.dataDir || 'data', inbound.userId, 1)
     if (!list.length) return
-    for (const item of list) {
-      try {
-        const buf = fs.readFileSync(item.path)
-        await context.channel.sendFile(inbound.userId, buf, item.name, inbound.contextToken)
-        services.logger.info('outbox 已补发：' + item.name)
-      } catch (e) {
-        services.logger.warn('outbox 补发失败：' + item.name + ' ' + e.message)
-      }
+    const item = list[0]
+    try {
+      const buf = fs.readFileSync(item.path)
+      await context.channel.sendFile(inbound.userId, buf, item.name, inbound.contextToken)
+      services.logger.info('outbox 已补发：' + item.name)
+    } catch (e) {
+      const tries = Number(item.tries || 0) + 1
+      if (tries >= 3) services.logger.warn('outbox 放弃补发：' + item.name + ' 连续失败 ' + tries + ' 次')
+      else enqueue(services.dataDir || 'data', { ...item, tries })
+      services.logger.warn('outbox 补发失败：' + item.name + ' ' + e.message)
     }
   }
 
@@ -939,6 +946,7 @@ export function createRouter({ services }) {
         userCtx: {
           userId,
           characterId: character ? character.id : null,
+          character,
           sessionId: sid,
           contextToken: token,
           sent: { count: 0 },
@@ -959,7 +967,8 @@ export function createRouter({ services }) {
       if (res && res.trace && res.trace.length) meta.tools = res.trace
       // 只写她那句：历史里不出现「用户说过话」，效果就是她自己来说了一句
       services.history.append(userId, sid, 'assistant', cleaned, Object.keys(meta).length ? meta : null)
-      if (channel) await channel.sendReply(userId, cleaned, token)
+      const delivered = channel ? await channel.sendReply(userId, cleaned, token) : true
+      if (!delivered) return { ok: false, reason: '微信发送失败，内容已保留待补发' }
       services.logger.info('[proactive] 已开口（' + trigger + '）：' + cleaned.replace(/\s+/g, ' ').slice(0, 60))
       return { ok: true, text: cleaned }
     } catch (e) {

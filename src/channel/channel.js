@@ -529,9 +529,9 @@ export class Channel {
           })
           this.logger.warn(`发送受阻，剩余内容已存入待发队列（队列 ${queued} 条），恢复后自动补发`)
           if (dropped) this.logger.error(`待发队列超过上限，丢弃了最旧的 ${dropped} 条（请检查微信侧限流是否长期未恢复）`)
-          return
+          return false
         }
-        return
+        return true
       }
       if (i < segs.length - 1) {
         // 拟人停顿：基础值 + 少量长度相关 + 随机抖动（避免固定节奏触发限流）
@@ -540,6 +540,7 @@ export class Channel {
     }
     // 这一轮全发出去，说明账号已经恢复 → 顺手把待发队列清一清
     void this.drainPending()
+    return true
   }
 
   /**

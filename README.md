@@ -68,7 +68,7 @@ ClawBot WeChat roleplay backend for character cards, long-term memory, tool call
 
 ### 对话运行
 
-回复可以分段发送，发送失败后进入补发队列。框架提供主动开口调度、配置导入导出，以及 token 用量和缓存命中统计。
+回复可以分段发送。文本发送失败会保留并提示；文件和图片每次入站只补发一项，超过 6 小时或连续失败 3 次后放弃。主动消息只有发送成功才计入每日次数。
 
 </td>
 <td width="50%">
@@ -103,7 +103,7 @@ ClawBot WeChat roleplay backend for character cards, long-term memory, tool call
 | 记忆 | 长期记忆、关键词与向量检索 | 可用 |
 | 模型 | 服务商切换、工具调用、任务委托 | 可用 |
 | 感知 | 当前时间、多地点天气、昨天与未来几天 | 可用 |
-| 调度 | 主动开口、分段回复、失败补发 | 可用 |
+| 调度 | 主动开口、分段回复、失败补发与限次重试 | 可用 |
 | 语音 | 语音转文字 | 实验性，默认仅回传识别结果 |
 | 感知扩展 | 文字转语音、视频理解、链接理解 | 开发中 |
 
@@ -115,7 +115,7 @@ npm start
 node src/cli/selftest.js
 ```
 
-首次启动进入通道登录流程。凭据保存在 `data/`，重启后继续使用。部署步骤见 [deploy/vps-setup.sh](deploy/vps-setup.sh)。
+首次启动进入通道登录流程。登录页在本地生成二维码，不直接加载微信返回的内容；二维码刷新后页面自动更新。凭据保存在 `data/`，重启后继续使用。部署步骤见 [docs/部署.md](docs/部署.md)。
 
 ## 文档
 
@@ -191,7 +191,7 @@ Perception sources, model tools, and chat commands each have a registration poin
 
 ### Conversation runtime
 
-Replies can be segmented, and failed sends enter a retry queue. The framework also provides proactive-message scheduling, import and export, and token and cache metrics.
+Replies can be segmented. Failed text stays queued and a visible notice is sent; files and images retry one item per inbound message, then stop after 6 hours or 3 consecutive failures. A proactive message counts toward the daily limit only after successful delivery.
 
 </td>
 <td width="50%">
@@ -226,7 +226,7 @@ Each turn includes the current time and weather for configured places. Locations
 | Memory | Long-term memory, keyword and vector retrieval | Stable |
 | Model | Provider switching, tool calls, task delegation | Stable |
 | Perception | Current time, multi-location weather, previous day and forecast | Stable |
-| Runtime | Proactive messages, segmented replies, retries | Stable |
+| Runtime | Proactive messages, segmented replies, bounded retries | Stable |
 | Speech | Speech to text | Experimental; verification output only by default |
 | Planned perception | Text to speech, video understanding, link understanding | In development |
 
@@ -238,7 +238,7 @@ npm start
 node src/cli/selftest.js
 ```
 
-The first launch starts the channel login flow. Credentials remain in `data/` and are reused after a restart. See [deploy/vps-setup.sh](deploy/vps-setup.sh) for deployment.
+The first launch starts the channel login flow. The login page renders its QR code locally instead of loading the content returned by WeChat, and refreshes when the code changes. Credentials remain in `data/` and are reused after a restart. See [docs/Deployment.md](docs/Deployment.md).
 
 ## Documentation
 

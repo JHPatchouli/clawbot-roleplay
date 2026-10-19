@@ -153,7 +153,9 @@ export function createProviders({ providerStore, logger }) {
     async chat({ messages, temperature, maxTokens, id = providerStore.activeId, extra, tools, toolChoice } = {}) {
       const cfg = requireConf(id)
       const thinking = resolveThinking(id, cfg.chatModel, cfg.thinking)
+      const preset = getPreset(id)
       const merged = { ...(thinking.params || {}), ...(extra || {}) }
+      if (id === 'deepseek' && preset?.apiMode && !Object.prototype.hasOwnProperty.call(merged, 'apiMode')) merged.apiMode = preset.apiMode
       const finalExtra = Object.keys(merged).length ? merged : undefined
       logger.debug(`调用模型 ${id}/${cfg.chatModel} thinking=${JSON.stringify(thinking)} tools=${Array.isArray(tools) ? tools.length : 0}`)
       // max_tokens 是**按模型**合法的：超过该模型的区间直接 400。

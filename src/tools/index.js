@@ -15,6 +15,8 @@ import { createFileTools } from './files.js'
 import { createWebTools } from './web.js'
 import { createSendTools } from './sendfile.js'
 import { createArchiveTools } from './archive.js'
+import { availableToolSkills, enabledSkillNames, permittedToolNames, renderToolSkill, renderToolSkillCatalog, TOOL_SKILLS } from './skills.js'
+import { quoteStock } from './stock.js'
 import { nowText, DEFAULT_TIME_ZONE } from '../perception/senses/time.js'
 
 const TRUNCATE_HINT = '\n…（结果过长已截断）'
@@ -315,7 +317,23 @@ export function createTools({ dataDir, config, toolStore, logger, memory = null,
             }
           }
         ]
-      : [])
+        : []),
+    {
+      name: 'stock_quote',
+      desc: '查询股票的最新价格、涨跌额和涨跌幅。只返回行情，不预测、不提供投资建议。',
+      params: {
+        query: { type: 'string', required: true, desc: '股票名称或代码' }
+      },
+      run: (a) => quoteStock(a.query)
+    },
+    {
+      name: 'use_skill',
+      desc: '读取一个已启用技能的完整使用说明。看到技能目录后，在真正调用对应工具前使用。',
+      params: {
+        name: { type: 'string', required: true, desc: '技能名称' }
+      },
+      run: () => ''
+    }
   ]
 
   const byName = new Map(SPECS.map((s) => [s.name, s]))
@@ -337,9 +355,20 @@ export function createTools({ dataDir, config, toolStore, logger, memory = null,
       }))
     },
 
+    skills() {
+      return TOOL_SKILLS.map((skill) => ({ name: skill.name, summary: skill.summary, tools: [...skill.tools] }))
+    },
+
+    visibleSpecs(character) {
+      const enabled = enabledSkillNames(character)
+      const names = new Set(permittedToolNames(SPECS, enabled))
+      const skills = new Set(availableToolSkills(SPECS, enabled).map((skill) => skill.name))
+      return SPECS.filter((spec) => names.has(spec.name) && (spec.name !== 'use_skill' || skills.size > 0))
+    },
+
     /** 原生 function calling 的 tools 参数 */
-    nativeSchema() {
-      return SPECS.map((s) => ({
+    nativeSchema(character = null) {
+      return this.visibleSpecs(character).map((s) => ({
         type: 'function',
         function: {
           name: s.name,
@@ -361,21 +390,28 @@ export function createTools({ dataDir, config, toolStore, logger, memory = null,
     },
 
     /** 提示词协议：系统提示词里插入的工具说明 */
-    promptBlock() {
-      const lines = SPECS.map((s) => {
+    promptBlock(character = null) {
+      const visible = this.visibleSpecs(character)
+      const lines = visible.map((s) => {
         const ps = Object.entries(s.params)
           .map(([k, v]) => `${k}${v.required ? '' : '?'}:${v.type === 'integer' ? '整数' : '文本'}`)
           .join(', ')
         return `- ${s.name}(${ps})：${s.desc}`
       })
+      const catalog = renderToolSkillCatalog(visible, enabledSkillNames(character))
       return (
         '【可用工具】\n' +
         lines.join('\n') +
         '\n\n【调用方式】需要工具时，**只输出一行 JSON**，不要有任何其他文字：\n' +
         '{"tool":"工具名","args":{"参数":"值"}}\n' +
         '收到「工具结果」后继续作答。不需要工具时正常回复，绝不输出 JSON。\n' +
-        '一次只调用一个工具；参数不确定就别调用。'
+        '一次只调用一个工具；参数不确定就别调用。' +
+        (catalog ? '\n\n【可用技能】需要具体做法时调用 use_skill：\n' + catalog : '')
       )
+    },
+
+    skillCatalog(character = null) {
+      return renderToolSkillCatalog(this.visibleSpecs(character), enabledSkillNames(character))
     },
 
     /**
@@ -384,9 +420,14 @@ export function createTools({ dataDir, config, toolStore, logger, memory = null,
      *   给「需要按用户隔离」的工具用（如 recall_memory）。
      */
     async run(name, args = {}, userCtx = null) {
-      const spec = byName.get(String(name || '').trim())
+      const visible = this.visibleSpecs(userCtx?.character)
+      const spec = visible.find((item) => item.name === String(name || '').trim())
       if (!spec) {
-        return { ok: false, text: `未知工具「${name}」。可用：${SPECS.map((s) => s.name).join('、')}` }
+        return { ok: false, text: '当前角色没有这个技能或工具的权限。' }
+      }
+      if (spec.name === 'use_skill') {
+        const loaded = renderToolSkill(args?.name, visible, enabledSkillNames(userCtx?.character))
+        return { ok: !!loaded, text: loaded || ('没有这个技能。可用技能：\n' + (this.skillCatalog(userCtx?.character) || '（无）')) }
       }
       const required = Object.entries(spec.params)
         .filter(([, v]) => v.required)

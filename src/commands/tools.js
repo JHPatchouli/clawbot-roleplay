@@ -2,15 +2,16 @@
  * 工具命令：查看工具状态、开关、配置联网搜索。
  */
 import { maskSecret } from '../tools/store.js'
+import { getCurrentCharacter } from '../roleplay/character.js'
 
-const PROVIDERS = ['bocha', 'tavily', 'brave', 'serper', 'searxng']
+const PROVIDERS = ['bocha', 'tavily', 'brave', 'serper', 'searxng', 'deepseek']
 
 export function registerToolCommands(router) {
   router.register({
     name: 'tools',
     aliases: ['tool'],
     description: '工具调用：状态 / test / on|off / web provider|key|url',
-    run: async ({ args, services }) => {
+    run: async ({ args, inbound, services }) => {
       const { tools, toolStore, providers, configStore, config, reply } = services
       const [sub, a, ...rest] = args
 
@@ -83,7 +84,9 @@ export function registerToolCommands(router) {
       const enabled = tools.enabled() && config.tools?.enabled !== false
       const native = providers.toolsSupported()
       const web = toolStore.get().web || {}
-      const list = tools.list()
+      const role = inbound?.userId && services.store ? getCurrentCharacter(services.store, inbound.userId) : null
+      const visible = new Set(role ? tools.visibleSpecs(role).map((item) => item.name) : [])
+      const list = role ? tools.list().filter((item) => visible.has(item.name)) : tools.list()
       const L = []
       L.push('🧰 工具调用')
       L.push('· 状态：' + (enabled ? '开启' : '关闭') + '（/tools on|off 切换）')
@@ -94,8 +97,9 @@ export function registerToolCommands(router) {
       L.push('　（前者是委托产物与解压结果的落地处，后者是她的草稿本；同名冲突以第一个为准）')
       L.push('· 联网搜索：' + (web.provider || '-') + ' · 密钥 ' + maskSecret(web.apiKey) + (web.provider === 'searxng' ? ' · 实例 ' + (web.searxngUrl || '（未配置）') : ''))
       L.push('· 单轮最多往返：' + (config.tools?.maxRounds ?? 3) + ' 次 · 结果上限 ' + (config.tools?.maxResultChars ?? 4000) + ' 字')
+      if (role) L.push('· 当前角色可见：' + list.length + ' 个（未启用技能不会显示其工具）')
       L.push('')
-      L.push('可用工具（' + list.length + '）：')
+      L.push('当前可用工具（' + list.length + '）：')
       for (const t of list) {
         const ps = t.params.map((p) => p.name + (p.required ? '' : '?')).join(', ')
         L.push('· ' + t.name + '(' + ps + ')　' + t.desc)

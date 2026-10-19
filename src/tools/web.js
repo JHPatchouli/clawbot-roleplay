@@ -387,8 +387,26 @@ export function normalizeBocha(d) {
   }))
 }
 
+/**
+ * DeepSeek Search API 返回结构归一化。
+ * 官方 results[] 含 title/url/snippet/summary；summary 并入 snippet，
+ * 其余未知字段忽略。缺字段或空 results 不报错。
+ */
+export function normalizeDeepseek(d) {
+  const rows = Array.isArray(d?.results) ? d.results : []
+  return rows.map((r) => {
+    const item = r && typeof r === 'object' ? r : {}
+    const snippet = [item.snippet, item.summary].filter(Boolean).join('\n')
+    return {
+      title: item.title || '',
+      url: item.url || '',
+      snippet
+    }
+  })
+}
+
 /** 各搜索服务的适配（统一返回 {title,url,snippet} 数组） */
-async function searchByProvider({ provider, apiKey, searxngUrl, query, count, timeoutMs }) {
+export async function searchByProvider({ provider, apiKey, searxngUrl, query, count, timeoutMs, fetchImpl } = {}) {
   const n = Math.min(Math.max(Number(count) || 5, 1), 10)
   const ac = () => {
     const c = new AbortController()
@@ -398,7 +416,7 @@ async function searchByProvider({ provider, apiKey, searxngUrl, query, count, ti
   const j = async (url, opts) => {
     const g = ac()
     try {
-      const res = await fetch(url, { ...opts, signal: g.signal })
+      const res = await (fetchImpl || fetch)(url, { ...opts, signal: g.signal })
       const text = await res.text()
       if (!res.ok) throw new Error('HTTP ' + res.status + '：' + text.slice(0, 120))
       return JSON.parse(text)
@@ -418,6 +436,16 @@ async function searchByProvider({ provider, apiKey, searxngUrl, query, count, ti
       body: JSON.stringify({ query, count: n, summary: true })
     })
     return normalizeBocha(d)
+  }
+  if (provider === 'deepseek') {
+    // 独立 Search API，不走模型 tool call；不拉取正文（need_content 固定 false）
+    const q = String(query || '').slice(0, 128)
+    const d = await j('https://api.deepseek.com/v1/tools/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+      body: JSON.stringify({ query: q, count: n, need_content: false })
+    })
+    return normalizeDeepseek(d)
   }
   if (provider === 'tavily') {
     const d = await j('https://api.tavily.com/search', {

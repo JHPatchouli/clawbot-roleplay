@@ -119,7 +119,7 @@ export function memoryBand(score) {
 }
 
 /**
- * 来源时间的显示：`19:37`；跟跨天就显示成区间 `~ `。
+ * 来源时间的显示：`2026-07-28 19:37`；跨天就显示成区间 `2026-07-26 ~ 2026-07-28`。
  *
  * 这是**代码算出来的**，不是让模型写的（学自 同类框架 的 LivingMemory：
  * `Attach source dates without asking the LLM to infer them`）。

@@ -48,6 +48,89 @@ export async function listModels({ baseUrl, apiKey }) {
   return list.map((m) => (typeof m === 'string' ? m : m?.id)).filter(Boolean)
 }
 
+function toResponseTools(tools) {
+  return (tools || []).map((tool) => {
+    const fn = tool?.function || tool || {}
+    return {
+      type: 'function',
+      name: fn.name,
+      description: fn.description || '',
+      parameters: fn.parameters || { type: 'object', properties: {} }
+    }
+  })
+}
+
+function toResponseInput(messages) {
+  const input = []
+  for (const message of messages || []) {
+    if (message?.role === 'tool') {
+      input.push({ type: 'function_call_output', call_id: message.call_id || message.tool_call_id, output: String(message.content || '') })
+      continue
+    }
+    for (const call of message?.tool_calls || []) {
+      input.push({
+        type: 'function_call',
+        call_id: call.call_id || call.id,
+        name: call.function?.name,
+        arguments: call.function?.arguments || '{}'
+      })
+    }
+    if (message?.content) input.push({ role: message.role === 'tool' ? 'user' : message.role, content: message.content })
+  }
+  return input
+}
+
+function fromResponse(data, model) {
+  const choice = data?.choices?.[0]
+  if (choice?.message) {
+    const raw = Array.isArray(choice.message.tool_calls) ? choice.message.tool_calls : []
+    return {
+      text: String(choice.message.content || '').trim(),
+      reasoning: String(choice.message.reasoning_content || '').trim(),
+      toolCalls: normalizeToolCalls(raw),
+      rawToolCalls: raw,
+      usage: normalizeUsage(data?.usage),
+      model: data?.model || model,
+      finishReason: choice.finish_reason || null
+    }
+  }
+  const output = Array.isArray(data?.output) ? data.output : []
+  const text = output
+    .filter((item) => item?.type === 'message')
+    .flatMap((item) => item.content || [])
+    .map((part) => part?.text || '')
+    .join('')
+  const reasoning = output
+    .filter((item) => item?.type === 'reasoning')
+    .flatMap((item) => item.content || [])
+    .map((part) => part?.text || '')
+    .join('')
+  const calls = output.filter((item) => item?.type === 'function_call')
+  const raw = calls.map((call) => ({ id: call.call_id || call.id, call_id: call.call_id || call.id, type: 'function', function: { name: call.name, arguments: call.arguments || '{}' } }))
+  const rawUsage = data?.usage
+  const usage = rawUsage
+    ? {
+        prompt_tokens: usageNumber(rawUsage.input_tokens),
+        completion_tokens: usageNumber(rawUsage.output_tokens),
+        total_tokens: usageNumber(rawUsage.total_tokens),
+        prompt_tokens_details: { cached_tokens: usageNumber(rawUsage.input_tokens_details?.cached_tokens) }
+      }
+    : null
+  return {
+    text: text.trim(),
+    reasoning: reasoning.trim(),
+    toolCalls: normalizeToolCalls(raw),
+    rawToolCalls: raw,
+    usage: normalizeUsage(usage),
+    model: data?.model || model,
+    finishReason: data?.status === 'incomplete' ? 'length' : data?.status || null
+  }
+}
+
+function usageNumber(value) {
+  return Number.isFinite(Number(value)) ? Number(value) : 0
+}
+
 /**
  * 对话补全（非流式）。
  *
@@ -75,7 +158,25 @@ export async function chatCompletion({
     body.tools = tools
     if (toolChoice) body.tool_choice = toolChoice
   }
-  if (extra && typeof extra === 'object') Object.assign(body, extra)
+  if (extra && typeof extra === 'object') {
+    const { apiMode, ...requestExtra } = extra
+    Object.assign(body, requestExtra)
+  }
+  if (extra?.apiMode === 'responses') {
+    const responseBody = {
+      model,
+      messages,
+      input: toResponseInput(messages),
+      stream: false,
+      reasoning: { effort: extra.reasoning_effort || 'high' }
+    }
+    if (temperature != null) responseBody.temperature = temperature
+    if (maxTokens != null) responseBody.max_output_tokens = maxTokens
+    if (Array.isArray(tools) && tools.length) responseBody.tools = toResponseTools(tools)
+    if (model === 'deepseek-v4-pro') responseBody.tools = [...(responseBody.tools || []), { type: 'web_search' }]
+    const data = await request(`${normalize(baseUrl).replace(/\/v1$/i, '')}/responses`, { apiKey, body: responseBody })
+    return fromResponse(data, model)
+  }
   const data = await request(`${normalize(baseUrl)}/chat/completions`, { apiKey, body })
   const choice = data?.choices?.[0] || {}
   const msg = choice.message || {}

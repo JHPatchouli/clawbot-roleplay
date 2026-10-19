@@ -159,7 +159,6 @@ export function createSendTools({ dataDir, config, logger, delegator = null }) {
       }
       if (failed.length) logger?.warn?.('[send_file] 两种通道都没发出去，改进待发箱：' + failed.join('；'))
 
-      // ② 回落：进待发箱，下次收到消息时补发（与 /export 的「发不出去也不丢」同一条路）
       try {
         enqueue(dataDir, { userId, name, path: found.abs })
         sent.count += 1

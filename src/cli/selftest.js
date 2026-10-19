@@ -46,7 +46,7 @@ import { judgeBashCommand } from '../agent/hooks.js'
 import { createSendTools, resolveInRoots, insideRoot, decideKind } from '../tools/sendfile.js'
 import { createArchiveTools } from '../tools/archive.js'
 import { buildZip, readZip, crc32, isSafeEntryName, normalizeEntryName, decodeEntryName } from '../tools/zip.js'
-import { readOutbox } from '../util/outbox.js'
+import { enqueue, pruneOutbox, readOutbox, takeFor, OUTBOX_MAX_AGE_MS } from '../util/outbox.js'
 import { messageTime, toExtractText, messageFingerprint } from '../chat/history.js'
 import { createProactive } from '../agent/proactive.js'
 import { registerProactiveCommands } from '../commands/proactive.js'
@@ -511,7 +511,7 @@ async function main() {
   await checkAsync('注册表：未知工具 / 缺参数 / 未配密钥都返回可纠正的错误', async () => {
     const a = await runTool('no_such_tool', {})
     assert.strictEqual(a.ok, false)
-    assert.ok(a.text.includes('未知工具'), a.text)
+    assert.ok(a.text.includes('没有这个技能或工具的权限'), a.text)
     const b = await runTool('web_fetch', {})
     assert.strictEqual(b.ok, false)
     assert.ok(b.text.includes('缺少参数'), b.text)
@@ -1180,7 +1180,7 @@ async function main() {
     const at = new Date(2026, 6, 28, 19, 37).getTime()
     const line = renderMemoryLine({ text: '愿意吃他做的胡萝卜蛋糕', scene: '打烊后的店', sourceFrom: at, sourceTo: at, score: 0.92 })
     assert.ok(line.includes('[确信]'), line)
-    assert.ok(line.includes(''), '要带真实发生时间：' + line)
+    assert.ok(line.includes('2026-07-28 19:37'), '要带真实发生时间：' + line)
     assert.ok(line.includes('愿意吃他做的胡萝卜蛋糕'), line)
     // 场景不再注入：推断情境容易复述事实或补充对话中没有的环境描写。
     assert.ok(!line.includes('打烊后的店'), '场景不该再进注入行：' + line)
@@ -1196,9 +1196,9 @@ async function main() {
   check('来源时间渲染：跨天用区间，认不出就不写', () => {
     const a = new Date(2026, 6, 26, 9, 5).getTime()
     const b = new Date(2026, 6, 28, 19, 37).getTime()
-    assert.strictEqual(renderSourceTime(a, a), '09:05')
-    assert.strictEqual(renderSourceTime(a, b), '~ ', '跨天要给区间，不能只报一个点')
-    assert.strictEqual(renderSourceTime(a), '09:05', '只有起点也照样能用')
+    assert.strictEqual(renderSourceTime(a, a), '2026-07-26 09:05')
+    assert.strictEqual(renderSourceTime(a, b), '2026-07-26 ~ 2026-07-28', '跨天要给区间，不能只报一个点')
+    assert.strictEqual(renderSourceTime(a), '2026-07-26 09:05', '只有起点也照样能用')
     assert.strictEqual(renderSourceTime(null), '', '没时间就空字符串')
     assert.strictEqual(renderSourceTime(0), '')
     assert.strictEqual(renderSourceTime('不是时间'), '')
@@ -2120,8 +2120,8 @@ async function main() {
       { role: 'assistant', content: '嗯，在的', at: t2 },
       { role: 'user', content: '我从旧客户端导过来的', at: Date.now(), atUnknown: true }
     ])
-    assert.ok(r.text.startsWith('[19:36] user：还在吗'), r.text)
-    assert.ok(r.text.includes('[19:40] assistant：嗯，在的'), r.text)
+    assert.ok(r.text.startsWith('[2026-07-28 19:36] user：还在吗'), r.text)
+    assert.ok(r.text.includes('[2026-07-28 19:40] assistant：嗯，在的'), r.text)
     assert.ok(r.text.includes('\nuser：我从旧客户端导过来的'), '不可信的不能加前缀：' + r.text)
     assert.strictEqual(r.from, t1, '区间只能用可信时间算')
     assert.strictEqual(r.to, t2)
@@ -2195,8 +2195,8 @@ async function main() {
       assert.strictEqual(calls.length, 1)
       assert.strictEqual(calls[0].sourceFrom, t1)
       assert.strictEqual(calls[0].sourceTo, t2)
-      assert.ok(calls[0].text.includes('[19:36]'), calls[0].text)
-      assert.ok(calls[0].text.includes('[08:10]'), calls[0].text)
+      assert.ok(calls[0].text.includes('[2026-07-28 19:36]'), calls[0].text)
+      assert.ok(calls[0].text.includes('[2026-07-30 08:10]'), calls[0].text)
     } finally {
       app.memory.extractFromConversation = orig
     }
@@ -3159,7 +3159,7 @@ async function main() {
     const t = Date.UTC(2026, 8, 15, 14, 31, 0) // 14:31 UTC
     const sh = zonedParts(t, 'Asia/Shanghai')
     assert.strictEqual(sh.hm, '22:31', '上海应是 22:31，实际 ' + sh.hm)
-    assert.strictEqual(sh.date, '', '上海还是 15 号')
+    assert.strictEqual(sh.date, '2026-09-15', '上海还是 15 号')
     assert.strictEqual(sh.weekday, 2, '是周二')
     assert.strictEqual(zonedParts(t, 'UTC').hm, '14:31', 'UTC 应是 14:31')
     assert.strictEqual(zonedParts(t, 'Not/AZone').hm, '22:31', '无效时区要退回默认，不能抛')
@@ -3206,7 +3206,7 @@ async function main() {
     const tz = 'Asia/Shanghai'
     const now = Date.UTC(2026, 8, 15, 14, 31)
     const t = timeBlock({ now, lastSpokeAt: now - 3 * 3600e3, timeZone: tz })
-    assert.ok(t.includes('现在（现实时间，以此为准）：周二 22:31（晚上）'), t)
+    assert.ok(t.includes('现在（现实时间，以此为准）：2026-09-15 周二 22:31（晚上）'), t)
     assert.ok(t.includes('上次说话：3 小时前（19:31）'), t)
     assert.ok(!t.includes('提示：'), '3 小时不该带提示：' + t)
     const noHistory = timeBlock({ now, lastSpokeAt: null, timeZone: tz })
@@ -3246,7 +3246,7 @@ async function main() {
     const atNightMarket = Date.UTC(2026, 8, 14, 10, 54) // 上海 09-14 18:54
     const nextMorning = Date.UTC(2026, 8, 15, 1, 0) // 上海 09-15 09:00
     const t = timeBlock({ now: nextMorning, lastSpokeAt: atNightMarket, timeZone: tz })
-    assert.ok(t.includes('现在（现实时间，以此为准）：周二 09:00（早上）'), t)
+    assert.ok(t.includes('现在（现实时间，以此为准）：2026-09-15 周二 09:00（早上）'), t)
     assert.ok(t.includes('上次说话：昨天 18:54'), t)
     assert.ok(t.includes('不要接着演上文'), '场景要切到现在：' + t)
     assert.ok(!/已经一天|隔了很久|早已结束/.test(t), '不能再替角色判断「一天没回」：' + t)
@@ -4591,6 +4591,27 @@ async function main() {
     }
   })
 
+  await checkAsync('待发件箱：去重、每次只取一项，并清理过期和多次失败', async () => {
+    const dir = mkTmpForChild('app-outbox-')
+    try {
+      const now = Date.now()
+      enqueue(dir, { userId: 'u', name: 'a.png', path: '/tmp/a.png' }, now)
+      enqueue(dir, { userId: 'u', name: 'a.png', path: '/tmp/a.png' }, now)
+      enqueue(dir, { userId: 'u', name: 'b.png', path: '/tmp/b.png' }, now)
+      assert.strictEqual(readOutbox(dir).length, 2, '同一文件不能重复入队')
+      assert.strictEqual(takeFor(dir, 'u', 1).length, 1, '一次只补发最早的一项')
+      assert.strictEqual(readOutbox(dir).length, 1, '未取出的项目继续保留')
+      const pruned = pruneOutbox([
+        { name: 'old', at: now - OUTBOX_MAX_AGE_MS - 1, tries: 0 },
+        { name: 'stuck', at: now, tries: 3 }
+      ], now)
+      assert.deepStrictEqual(pruned.kept, [])
+      assert.deepStrictEqual(pruned.dropped.map((item) => item.reason), ['expired', 'too-many-failures'])
+    } finally {
+      rmTmp(dir)
+    }
+  })
+
   console.log('\n【49】主动消息（随机时间她先说话）：判定是纯函数，回滚是一条命令')
   await checkAsync('能不能开口：未开启 / 静默时段 / 每日上限 / 刚聊过 —— 四个闸门都要有效', async () => {
     const mk = (over = {}, state = {}) => {
@@ -4615,22 +4636,22 @@ async function main() {
         fire: async () => ({ ok: true }),
         listUsers: () => ['u-p'],
         lastActivityAt: () => 0,
-        now: () => Date.parse('T08:00:00Z'),
+        now: () => Date.parse('2026-09-15T08:00:00Z'),
         random: () => 0
       })
       return p
     }
     // ① 默认关（默认就是关：这是一条「没人说话也会发出去」的路径）
     const off = mk({ enabled: false })
-    assert.strictEqual(off._blockReason('u-p', Date.parse('T08:00:00Z')), '未开启')
+    assert.strictEqual(off._blockReason('u-p', Date.parse('2026-09-15T08:00:00Z')), '未开启')
     // ② 静默时段：Asia/Shanghai 的 23:30 = UTC 15:30
     const quiet = mk()
-    assert.strictEqual(quiet._blockReason('u-p', Date.parse('T15:30:00Z')), '静默时段')
+    assert.strictEqual(quiet._blockReason('u-p', Date.parse('2026-09-15T15:30:00Z')), '静默时段')
     // ③ 每日上限
-    const capped = mk({}, { 'proactive:fired:u-p': { day: '', n: 2, at: 0 } })
+    const capped = mk({}, { 'proactive:fired:u-p': { day: '2026-09-15', n: 2, at: 0 } })
     assert.ok(
-      /今天已经主动说过/.test(capped._blockReason('u-p', Date.parse('T04:00:00Z'))),
-      '到上限就该拦住：' + capped._blockReason('u-p', Date.parse('T04:00:00Z'))
+      /今天已经主动说过/.test(capped._blockReason('u-p', Date.parse('2026-09-15T04:00:00Z'))),
+      '到上限就该拦住：' + capped._blockReason('u-p', Date.parse('2026-09-15T04:00:00Z'))
     )
     // ④ 刚聊过
     const recent = createProactive({
@@ -4639,16 +4660,16 @@ async function main() {
       logger: { info() {}, warn() {} },
       fire: async () => ({ ok: true }),
       listUsers: () => ['u-p'],
-      lastActivityAt: () => Date.parse('T03:50:00Z'),
+      lastActivityAt: () => Date.parse('2026-09-15T03:50:00Z'),
       random: () => 0
     })
     assert.ok(
-      /刚刚才聊过/.test(recent._blockReason('u-p', Date.parse('T04:00:00Z'))),
-      '10 分钟前才聊过，不该去打扰：' + recent._blockReason('u-p', Date.parse('T04:00:00Z'))
+      /刚刚才聊过/.test(recent._blockReason('u-p', Date.parse('2026-09-15T04:00:00Z'))),
+      '10 分钟前才聊过，不该去打扰：' + recent._blockReason('u-p', Date.parse('2026-09-15T04:00:00Z'))
     )
     // ⑤ 都满足 → 放行；随机间隔落在配置区间内
     const ok = mk()
-    assert.strictEqual(ok._blockReason('u-p', Date.parse('T04:00:00Z')), null)
+    assert.strictEqual(ok._blockReason('u-p', Date.parse('2026-09-15T04:00:00Z')), null)
     assert.strictEqual(ok._nextDelayMs(), 30 * 60000, 'random=0 时应取下限')
     const mid = createProactive({
       config: { proactive: { enabled: true, minGapMinutes: 30, maxGapMinutes: 120 } },
@@ -4725,6 +4746,12 @@ async function main() {
       app.providers.chat = async () => ({ text: '<related_memory>资料</related_memory>', reasoning: '', toolCalls: [], rawToolCalls: [] })
       const r3 = await app.router.initiateTurn(uid, { channel: ch, trigger: 'selftest' })
       assert.strictEqual(r3.ok, false, '只剩标记时不许发：' + JSON.stringify(r3))
+      app.providers.chat = async () => ({ text: '发送失败测试', reasoning: '', toolCalls: [], rawToolCalls: [] })
+      const failed = { sendReply: async () => false, sendTyping: async () => {}, lastTokenFor: () => 'tk-pro' }
+      const histBeforeFailure = app.history.list(uid, sid).length
+      const failedResult = await app.router.initiateTurn(uid, { channel: failed, trigger: 'selftest-failed-delivery' })
+      assert.strictEqual(failedResult.ok, false, '发送失败不能记成主动消息成功')
+      assert.strictEqual(app.history.list(uid, sid).length, histBeforeFailure + 1, '原文仍保留在历史中')
     } finally {
       app.providers.active = origActive
       app.providers.chat = origChat
@@ -4821,10 +4848,10 @@ async function main() {
     assert.strictEqual(cfgObj.proactive.quietToHour, 10, '静默时段终点最晚 10 点：' + cfgObj.proactive.quietToHour)
     assert.ok(r.clamped.length >= 5, '夹取要如实报出来（她才能对用户说实话）：' + JSON.stringify(r.clamped))
     // 半夜必须仍然被打扰不到：凌晨 2 点（北京时间）一定在静默时段里
-    assert.strictEqual(p._blockReason('u-c', Date.parse('T18:00:00Z')), '静默时段', '凌晨 2 点必须拦住')
+    assert.strictEqual(p._blockReason('u-c', Date.parse('2026-09-15T18:00:00Z')), '静默时段', '凌晨 2 点必须拦住')
     // 预约：过 N 分钟来找他
     assert.ok(Number(kv['proactive:at:u-c']) > 0, '要落一条预约')
-    assert.ok(/约好了再等/.test(p._blockReason('u-c', Date.parse('T04:00:00Z'))), '预约没过期前不许提前发')
+    assert.ok(/约好了再等/.test(p._blockReason('u-c', Date.parse('2026-09-15T04:00:00Z'))), '预约没过期前不许提前发')
   })
 
   check('她能暂停，但**不能**把用户关掉的翻回来（回滚闸门不能被绕过）', () => {
@@ -4856,7 +4883,7 @@ async function main() {
     assert.strictEqual(cfgObj.proactive.enabled, false, 'enabled 不该被改动')
     assert.ok(/他开口/.test(resume.reason), '要给出她能转达的理由：' + resume.reason)
     // 关着的时候也不该发：blockReason 要有明确理由（未开启/上锁都行，但不能放行）
-    assert.ok(p._blockReason('u-l', Date.parse('T04:00:00Z')), '关着就必须拦住')
+    assert.ok(p._blockReason('u-l', Date.parse('2026-09-15T04:00:00Z')), '关着就必须拦住')
     // 暂停是允许的（她自己想安静一会儿）
     const pause = p._applySettings('u-l', { pause: true })
     assert.strictEqual(pause.ok, true)
@@ -5963,7 +5990,7 @@ async function main() {
           },
           logger: { warn: () => {}, info: () => {} }
         })
-        const at = Date.parse('T08:38:00+08:00')
+        const at = Date.parse('2026-09-15T08:38:00+08:00')
         const r = await perception.perceive({ history: [], now: at })
         assert.ok(r.text, '感知块不该整个消失')
         assert.ok(r.text.includes('现在'), '时间那一行必须还在：' + r.text)
