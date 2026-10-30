@@ -2715,8 +2715,9 @@ async function main() {
         assert.strictEqual(seen.length, 2, '空内容后要重试一次，实际请求 ' + seen.length + ' 次')
         assert.strictEqual(out.text, '我在这里。', '重试后要拿到真回复：' + JSON.stringify(out.text))
         assert.strictEqual(out.finishReason, 'stop', 'finish_reason 要带出来（从前被丢掉，日志分不清「没说话」与「被截断」）')
-        const last = seen[1].messages[seen[1].messages.length - 1]
-        assert.strictEqual(last.role, 'system', '催促放在末尾（与 agent 的「已达上限请直接作答」同款）')
+        const retried = seen[1].messages || seen[1].input || []
+        const last = retried[retried.length - 1]
+        assert.strictEqual(last.role, 'user', '催促必须仍以 user 收尾，避免思考模式 400')
         assert.ok(last.content.includes('没有输出任何内容'), '催促要说清「刚才没输出」：' + last.content)
         assert.strictEqual(seen[0].messages.length + 1, seen[1].messages.length, '重试只是多一条催促，原消息不动（缓存照常命中）')
       }
@@ -3362,15 +3363,20 @@ async function main() {
       h[0].at = Date.now() - 2 * 3600e3
       app.history.set(uid, sid, h)
       await app.router.handle({ ...base, text: '你还没睡？' }, ctx)
-      const hit = seen.filter((p) =>
-        (p.messages || []).some((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('<perception>'))
+      const messageList = (payload) => payload.messages || payload.input || []
+      const messageText = (message) => Array.isArray(message?.content)
+        ? message.content.map((part) => part?.text || '').join('\n')
+        : String(message?.content || '')
+      const hit = seen.filter((payload) =>
+        messageList(payload).some((message) => message.role === 'user' && messageText(message).includes('<perception>'))
       )
       assert.ok(hit.length >= 1, '请求里没有感知块（实际发出 ' + seen.length + ' 次请求）')
-      const msgs = hit[0].messages
+      const msgs = messageList(hit[0])
       const lastUser = [...msgs].reverse().find((m) => m.role === 'user')
-      assert.ok(lastUser.content.includes('上次说话：2 小时前'), '要带上真实间隔：' + lastUser.content)
-      assert.ok(lastUser.content.includes('现实时间，以此为准'), '要带上当前时间（含优先级标记）：' + lastUser.content)
-      const sys = msgs.filter((m) => m.role === 'system').map((m) => String(m.content)).join('\n')
+      const lastUserText = messageText(lastUser)
+      assert.ok(lastUserText.includes('上次说话：2 小时前'), '要带上真实间隔：' + lastUserText)
+      assert.ok(lastUserText.includes('现实时间，以此为准'), '要带上当前时间（含优先级标记）：' + lastUserText)
+      const sys = msgs.filter((m) => m.role === 'system').map(messageText).join('\n')
       assert.ok(!sys.includes('<perception>'), '感知块出现在 system 里会毁掉前缀缓存')
       assert.ok(sys.includes(SENSE_USAGE_RULE), 'system 里要有固定的使用规范')
     } finally {
@@ -3648,7 +3654,6 @@ async function main() {
       const calls = []
       // ⚠️ 契约：两条通道都按 `fn(name, buf)` 调（见 sendfile.js）。
       //    假件里必须**记下 buf 的字节数**，否则「把文件名当内容传」这类参数错会完全测不出来
-      //    
       const ctx = {
         userId: 'u-a',
         sent: { count: 0 },
@@ -4576,13 +4581,16 @@ async function main() {
         false,
         '系统提示不能进历史（否则模型下次会以为对方说过这话）'
       )
-      const notice = seen.length
-        ? seen[0].messages.find((m) => m.role === 'user' && String(m.content).includes('托人做的'))
-        : null
-      assert.ok(notice, '请求里要有那条「有结果了」的系统提示，实际请求 ' + seen.length + ' 次')
-      assert.ok(notice.content.includes('不是对方说的话'), '提示要一眼看出「不是对方在说话」')
-      assert.ok(notice.content.includes('report.csv'), '要把产物清单交给她：' + notice.content)
-      assert.ok(notice.content.includes('send_file'), '有产物时要提示用 send_file 发过去')
+      const noticeMessages = seen.length ? seen[0].messages || seen[0].input || [] : []
+      const noticeText = (message) => Array.isArray(message?.content)
+        ? message.content.map((part) => part?.text || '').join('\n')
+        : String(message?.content || '')
+      const notice = noticeMessages.find((message) => message.role === 'user' && noticeText(message).includes('托人做的'))
+      assert.ok(notice, '请求里要有那条「有结果了」的提示，实际请求 ' + seen.length + ' 次')
+      const noticeBody = noticeText(notice)
+      assert.ok(noticeBody.includes('不是对方说的话'), '提示要一眼看出「不是对方在说话」')
+      assert.ok(noticeBody.includes('report.csv'), '要把产物清单交给她：' + noticeBody)
+      assert.ok(noticeBody.includes('send_file'), '有产物时要提示用 send_file 发过去')
     } finally {
       globalThis.fetch = origFetch
       app.providerStore.update(app.providerStore.activeId, keepProvider)
@@ -5210,7 +5218,7 @@ async function main() {
         '历史里要有 [语音] 标记：' + JSON.stringify(hist)
       )
       const req = seen[seen.length - 1]
-      const userMsgs = (req.messages || []).filter((m) => m.role === 'user')
+      const userMsgs = (req.messages || req.input || []).filter((m) => m.role === 'user')
       const lastUser = userMsgs[userMsgs.length - 1].content
       const textOf = (c) => (typeof c === 'string' ? c : (c || []).map((x) => x.text || '').join(''))
       assert.ok(textOf(lastUser).includes('今天天气不错，你中午吃了什么？'), '模型要看到转写原文：' + textOf(lastUser).slice(0, 120))

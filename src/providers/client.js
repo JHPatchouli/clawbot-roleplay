@@ -60,6 +60,22 @@ function toResponseTools(tools) {
   })
 }
 
+function toResponseContent(content, role) {
+  if (!Array.isArray(content)) return content
+  const imageRole = role === 'user' || role === 'developer'
+  return content.flatMap((part) => {
+    if (part?.type === 'image_url' || part?.type === 'input_image') {
+      if (!imageRole) return []
+      const image = part.image_url?.url || part.image_url || part.imageUrl
+      return image ? [{ type: 'input_image', image_url: image, ...(part.detail ? { detail: part.detail } : {}) }] : []
+    }
+    if (part?.type === 'text' || part?.type === 'input_text' || part?.type === 'output_text') {
+      return [{ type: role === 'assistant' ? 'output_text' : 'input_text', text: String(part.text || '') }]
+    }
+    return [part]
+  })
+}
+
 function toResponseInput(messages) {
   const input = []
   for (const message of messages || []) {
@@ -75,7 +91,10 @@ function toResponseInput(messages) {
         arguments: call.function?.arguments || '{}'
       })
     }
-    if (message?.content) input.push({ role: message.role === 'tool' ? 'user' : message.role, content: message.content })
+    if (message?.content) {
+      const role = message.role === 'tool' ? 'user' : message.role
+      input.push({ role, content: toResponseContent(message.content, role) })
+    }
   }
   return input
 }
@@ -165,13 +184,13 @@ export async function chatCompletion({
   if (extra?.apiMode === 'responses') {
     const responseBody = {
       model,
-      messages,
       input: toResponseInput(messages),
       stream: false,
-      reasoning: { effort: extra.reasoning_effort || 'high' }
+      reasoning: { effort: extra.thinking?.type === 'disabled' ? 'none' : extra.reasoning_effort || 'high' }
     }
     if (temperature != null) responseBody.temperature = temperature
     if (maxTokens != null) responseBody.max_output_tokens = maxTokens
+    if (extra?.response_format?.type === 'json_object') responseBody.text = { format: { type: 'json_object' } }
     if (Array.isArray(tools) && tools.length) responseBody.tools = toResponseTools(tools)
     if (model === 'deepseek-v4-pro') responseBody.tools = [...(responseBody.tools || []), { type: 'web_search' }]
     const data = await request(`${normalize(baseUrl).replace(/\/v1$/i, '')}/responses`, { apiKey, body: responseBody })

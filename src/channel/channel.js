@@ -119,6 +119,7 @@ export class Channel {
     })
     // 待发队列补发状态机：同一时刻只跑一轮补发，避免定时器与「发送成功后顺手补发」撞车
     this.draining = false
+    this.pendingBlockedUntil = 0
     // 定时兜底：长时间没有任何消息时也要把队列送出去。
     // unref 让它不阻止进程退出（selftest / 一次性脚本里不会把进程吊住）。
     const retryMs = Number(config.reply?.pendingRetryMs ?? 60000)
@@ -558,6 +559,7 @@ export class Channel {
     if (this.draining) return { sent: 0, left: 0, skipped: true }
     const list = readPending(this.dataDir)
     if (!list.length) return { sent: 0, left: 0 }
+    if (Date.now() < this.pendingBlockedUntil) return { sent: 0, left: list.length, skipped: true }
     this.draining = true
     try {
       let i = 0
@@ -581,6 +583,11 @@ export class Channel {
       // 说清楚，别让人只看见次数在涨（此时它会一直堵着后面的，这是已知取舍）
       if (left.length && left[0].tries === 10) {
         this.logger.error('待发队列队头连续 10 次补发失败：可能不是限流，而是这条内容本身发不出去（/pending 看预览）')
+      }
+      if (left.length && left[0].tries > 10) {
+        const delay = Math.min(3600000, this.limiter.cooldownRemaining + 60000 * 2 ** Math.min(left[0].tries - 10, 6))
+        this.pendingBlockedUntil = Date.now() + delay
+        this.logger.warn(`待发队列暂停自动补发 ${Math.round(delay / 1000)} 秒（队头已失败 ${left[0].tries} 次）`)
       }
       return { sent: i, left: left.length }
     } finally {

@@ -154,8 +154,19 @@ export function createProviders({ providerStore, logger }) {
       const cfg = requireConf(id)
       const thinking = resolveThinking(id, cfg.chatModel, cfg.thinking)
       const preset = getPreset(id)
-      const merged = { ...(thinking.params || {}), ...(extra || {}) }
-      if (id === 'deepseek' && preset?.apiMode && !Object.prototype.hasOwnProperty.call(merged, 'apiMode')) merged.apiMode = preset.apiMode
+      const responseMode = id === 'deepseek' && preset?.apiMode === 'responses'
+      const merged = {
+        ...(responseMode ? {} : thinking.params || {}),
+        ...(extra || {}),
+        ...(responseMode
+          ? {
+              apiMode: 'responses',
+              reasoning_effort: thinking.params?.reasoning_effort,
+              thinking: thinking.params?.thinking,
+              ...(extra?.response_format ? { response_format: extra.response_format } : {})
+            }
+          : {})
+      }
       const finalExtra = Object.keys(merged).length ? merged : undefined
       logger.debug(`调用模型 ${id}/${cfg.chatModel} thinking=${JSON.stringify(thinking)} tools=${Array.isArray(tools) ? tools.length : 0}`)
       // max_tokens 是**按模型**合法的：超过该模型的区间直接 400。
@@ -202,7 +213,7 @@ export function createProviders({ providerStore, logger }) {
           logger.warn(
             `模型返回空内容（finish=${out.finishReason || '未知'} 思考=${out.reasoning.length}字），催促后重试 1 次`
           )
-          out = await call([...messages, { role: 'system', content: EMPTY_SPEECH_NUDGE }])
+          out = await call([...messages, { role: 'user', content: EMPTY_SPEECH_NUDGE }])
           if (isEmptySpeech(out)) {
             logger.warn(
               `催促后仍为空内容（finish=${out.finishReason || '未知'} 思考=${out.reasoning.length}字）；思考片段：` +

@@ -135,7 +135,7 @@ export function createAgent({ providers, tools, config, logger }) {
         //    所以连 tool_calls 一起丢掉，只留它已经说出口的那点文本 + 一句催促。
         const nudge = '已达工具调用上限，请直接基于已知信息作答，不要再调用工具。'
         const tail = native
-          ? [...(String(out.text || '').trim() ? [{ role: 'assistant', content: out.text }] : []), { role: 'system', content: nudge }]
+          ? [...(String(out.text || '').trim() ? [{ role: 'assistant', content: out.text }] : []), { role: 'user', content: nudge }]
           : [
               { role: 'assistant', content: out.text },
               { role: 'user', content: '（' + nudge + '不要再输出 JSON。）' }
