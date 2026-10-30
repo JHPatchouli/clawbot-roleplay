@@ -251,7 +251,7 @@ export function normalizeToolCalls(list) {
       } catch (_) {
         args = {}
       }
-      return { id: String(c?.id || ''), name: String(fn.name || ''), args }
+      return { id: String(c?.id || ''), call_id: String(c?.call_id || c?.id || ''), name: String(fn.name || ''), args }
     })
     .filter((c) => c.name)
 }

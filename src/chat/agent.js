@@ -156,7 +156,8 @@ export function createAgent({ providers, tools, config, logger }) {
           logger?.info(`[tool] ${c.name} ${label(r)} → ${String(r.text).slice(0, 80)}`)
           trace.push({ round: rounds, name: c.name, args: c.args, ok: !!r.ok, ms, chars: String(r.text).length, preview: String(r.text).slice(0, 400) })
           if (userCtx && UNTRUSTED_TOOLS.has(c.name)) userCtx.untrustedThisTurn = true
-          msgs = [...msgs, { role: 'tool', tool_call_id: c.call_id || c.id || 'call_' + rounds, call_id: c.call_id || c.id || 'call_' + rounds, content: r.text }]
+          const callId = c.call_id || c.id || 'call_' + rounds
+          msgs = [...msgs, { role: 'tool', tool_call_id: callId, call_id: callId, content: r.text }]
         }
       } else {
         msgs = [...msgs, { role: 'assistant', content: out.text }]

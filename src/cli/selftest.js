@@ -28,7 +28,7 @@ import { createAgent, parseToolCall, stripToolJson, isToolsUnsupportedError, UNT
 import { getCurrentCharacter, getCurrentCharacterId, setCurrentCharacterId } from '../roleplay/character.js'
 import { getTriggeredLore } from '../roleplay/lorebook.js'
 import { Channel } from '../channel/channel.js'
-import { normalizeUsage } from '../providers/client.js'
+import { fromResponse, normalizeUsage, responseInputSummary, toResponseInput } from '../providers/client.js'
 import { createProviders, isEmptySpeech, parseMaxTokensLimit } from '../providers/index.js'
 import { outputTokenLimit, DEFAULT_MAX_OUTPUT_TOKENS, effectiveMaxTokens } from '../providers/catalog.js'
 import { createUsageMeter } from '../usage.js'
@@ -129,6 +129,22 @@ async function main() {
       `｜TZ=${process.env.TZ || '(未设，用系统)'}｜offline=${!process.env.DEBUG}`
   )
   if (uid === 0) console.log('提示：以 root 跑 → 委托相关用例的子进程会**降权为 nobody**（临时目录必须可被它读取）')
+
+  check('Responses API：工具结果回传 call_id，不用 output item id', () => {
+    const parsed = fromResponse({
+      status: 'completed',
+      output: [{ type: 'function_call', id: 'fc_output_item', call_id: 'call_00_real', name: 'send_file', arguments: '{"name":"a.jpg"}' }]
+    }, 'deepseek-flash')
+    assert.strictEqual(parsed.toolCalls[0].call_id, 'call_00_real')
+    const input = toResponseInput([
+      { role: 'assistant', content: '', tool_calls: parsed.rawToolCalls },
+      { role: 'tool', tool_call_id: parsed.toolCalls[0].call_id, call_id: parsed.toolCalls[0].call_id, content: '已发送' }
+    ])
+    const summary = responseInputSummary(input)
+    assert.deepStrictEqual(summary.missing, [])
+    assert.deepStrictEqual(summary.orphan, [])
+    assert.ok(!JSON.stringify(input).includes('fc_output_item'))
+  })
 
   console.log('\n【1】分段条数上限（prepare failed 的直接成因）')
   check('23 段合并到上限 10 段，且内容不丢', () => {

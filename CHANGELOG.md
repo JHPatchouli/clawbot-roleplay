@@ -6,3 +6,4 @@
 - Responses 请求只保留原生的 `reasoning` 与 `text.format`，不再混入 `thinking`、`reasoning_effort` 和 `response_format`。
 - 空回复与工具上限的催促改为用户消息，避免系统消息出现在用户消息之后导致 HTTP 400。
 - 文本待发队列的队头连续失败超过 10 次后，按指数退避暂停自动补发，最长一小时；内容不会丢失。
+- 修复 Responses 工具继续请求：保留并回传 `call_id`，不再误用 output item 的 `id`，避免「No tool output found」HTTP 400。
