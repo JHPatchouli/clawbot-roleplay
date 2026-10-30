@@ -81,4 +81,6 @@ Failed text is stored in `data/pending-replies.json`, and the user immediately r
 
 Files and images are stored in `data/outbox.json`. Each inbound message retries only the oldest item, and the same file is not queued twice. An item is discarded after 6 hours or 3 consecutive failures.
 
+If the head of the text retry queue fails more than 10 times, automatic replay pauses with exponential backoff for up to one hour. The content stays queued and can be inspected with `/pending` or retried immediately with `/pending retry`.
+
 A proactive message counts toward the daily limit only after WeChat accepts it. If generation succeeds but delivery fails, the content remains queued and does not consume the daily allowance.
