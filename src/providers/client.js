@@ -60,6 +60,22 @@ function toResponseTools(tools) {
   })
 }
 
+export function responseInputSummary(input) {
+  const calls = new Set()
+  const outputs = new Set()
+  for (const item of input || []) {
+    if (item?.type === 'function_call' && item.call_id) calls.add(item.call_id)
+    if (item?.type === 'function_call_output' && item.call_id) outputs.add(item.call_id)
+  }
+  return {
+    items: (input || []).length,
+    calls: calls.size,
+    outputs: outputs.size,
+    missing: [...calls].filter((id) => !outputs.has(id)),
+    orphan: [...outputs].filter((id) => !calls.has(id))
+  }
+}
+
 function toResponseContent(content, role) {
   if (!Array.isArray(content)) return content
   const imageRole = role === 'user' || role === 'developer'
@@ -76,7 +92,7 @@ function toResponseContent(content, role) {
   })
 }
 
-function toResponseInput(messages) {
+export function toResponseInput(messages) {
   const input = []
   for (const message of messages || []) {
     if (message?.role === 'tool') {
@@ -99,7 +115,7 @@ function toResponseInput(messages) {
   return input
 }
 
-function fromResponse(data, model) {
+export function fromResponse(data, model) {
   const choice = data?.choices?.[0]
   if (choice?.message) {
     const raw = Array.isArray(choice.message.tool_calls) ? choice.message.tool_calls : []
@@ -193,6 +209,10 @@ export async function chatCompletion({
     if (extra?.response_format?.type === 'json_object') responseBody.text = { format: { type: 'json_object' } }
     if (Array.isArray(tools) && tools.length) responseBody.tools = toResponseTools(tools)
     if (model === 'deepseek-v4-pro') responseBody.tools = [...(responseBody.tools || []), { type: 'web_search' }]
+    const summary = responseInputSummary(responseBody.input)
+    if (summary.missing.length || summary.orphan.length) {
+      throw new Error('Responses 工具调用配对不完整：' + JSON.stringify(summary))
+    }
     const data = await request(`${normalize(baseUrl).replace(/\/v1$/i, '')}/responses`, { apiKey, body: responseBody })
     return fromResponse(data, model)
   }
